@@ -97,3 +97,52 @@ cd ..
 python3 analyze_music.py 
 python3 energy.py energy
 python3 analyze_music.py 
+git status
+python3 analyze_music.py 
+git status
+git add .
+git commit -m "last working version before fadein&fadeout"
+git pus
+python3 fade_only.py 
+python3 fade_only.py music
+python3 fade_only.py
+python3 analyze_music.py 
+python3 fade_only.py
+pip install madmom
+python3 fade_only.py
+pip install Cython
+pip install madmom
+python3 fade_only.py
+python --version
+python -v
+python3 -v
+python3 --version
+nano /usr/local/lib/python3.10/dist-packages/madmom/processors.py
+python3 fade_only.py
+pip install numpy==1.23.5
+python3 fade_only.py
+pip install omnizart
+omnizart download-checkpoints drums
+pip install omnizart
+omnizart download-checkpoints drums
+python3 analyze_music.py 
+python3 analyze_music.py \
+python3 analyze_music.py
+python3 version1.py 
+python3 analyze_music.py
+python3 version1.py 
+python3 analyze_music.py
+A
+python3 analyze_music.py
+python3 version1.py 
+python3 analyze_music.py
+python3 version1.py 
+python3 analyze_music.py
+python3 version1.py 
+python3 analyze_music.py
+python3 version1.py 
+python3 analyze_music.py
+python3 version1.py 
+python3 analyze_music.py
+python3 version1.py 
+python3 analyze_music.py

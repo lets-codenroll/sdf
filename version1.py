@@ -46,7 +46,7 @@ MOOD_LABELS = [
     "sport", "summer", "travel", "upbeat", "uplifting"
 ]
 
-# Prepare the temp directory
+# Prepare the temp irectory
 def prepare_temp_directory():
     if TEMP_DIR.exists():
         shutil.rmtree(TEMP_DIR)
@@ -74,6 +74,7 @@ def transform_genre(label: str) -> str:
 
 # Extract feature
 def extract_features(filepath: Path, is_electronic: bool):
+
     # create two WAVs: 44.1 kHz for BPM/Key, 16 kHz for embedding
     wav44 = convert_to_wav(filepath, sample_rate=44100)
     wav16 = convert_to_wav(filepath, sample_rate=16000)
@@ -95,36 +96,18 @@ def extract_features(filepath: Path, is_electronic: bool):
         output='PartitionedCall:1'
     )
     embedding = embedder(audio16)
-    
-    # mood prediction
+
+    # mood prediction and threshold
     mood_pred = TensorflowPredict2D(
         graphFilename=MOOD_MODEL_PATH,
         input='model/Placeholder',
         output='model/Sigmoid'
     )(embedding).flatten()
-    
-    # יצירת מילון של כל הערכים
-    mood_scores = {lbl: float(sc) for lbl, sc in zip(MOOD_LABELS, mood_pred)}
-
-    # הדפסה כפולה: סף 0.1 ו-Top5 מעל 0.05
-    print(f"\n=== Mood predictions for {filepath.name} ===")
-    threshold = 0.05
-    moods_threshold = sorted(((lbl.capitalize(), sc) for lbl, sc in mood_scores.items() if sc > threshold),
-                             key=lambda x: -x[1])
-    print(f"\n[Threshold > {threshold}]")
-    for lbl, sc in moods_threshold:
-        print(f"  {lbl:<15} {sc:.3f}")
-
-    min_threshold = 0.05
-    top_n = 5
-    moods_topn = sorted(((lbl.capitalize(), sc) for lbl, sc in mood_scores.items() if sc > min_threshold),
-                        key=lambda x: -x[1])[:top_n]
-    print(f"\n[Top {top_n} above {min_threshold}]")
-    for lbl, sc in moods_topn:
-        print(f"  {lbl:<15} {sc:.3f}")
-
-    # מחרוזת למטה-דאטה לפי הסף המקורי
-    moods_str = ", ".join(lbl for lbl, _ in moods_threshold)
+    moods = sorted(
+        ((lbl.capitalize(), sc) for lbl, sc in zip(MOOD_LABELS, mood_pred) if sc > 0.1),
+        key=lambda x: -x[1]
+    )
+    moods_str = ", ".join(lbl for lbl, _ in moods)
 
     # genre prediction, take top 1 and transform
     genre_pred = TensorflowPredict2D(
@@ -141,10 +124,11 @@ def extract_features(filepath: Path, is_electronic: bool):
         filtered = [(g, p) for g, p in genres_sorted if not g.startswith("Electronic---")]
 
     filtered = [(g, p) for g, p in filtered if g not in IGNORE_GENRES]
+
     raw_genre = filtered[0][0] if filtered else genres_sorted[0][0]
     genre_str = transform_genre(raw_genre)
 
-    # debug print top 5 genres
+    # debug print top 5
     top5 = [g for g, _ in filtered[:5]]
     print(f"Top 5 genres for {filepath.name}: {', '.join(top5)}")
 
@@ -154,11 +138,10 @@ def extract_features(filepath: Path, is_electronic: bool):
         moods_str,
         genre_str,
         round(lufs, 2),
-        round(gain, 2),
-        mood_scores
+        round(gain, 2)
     )
 
-def write_metadata(path: Path, bpm, root_key, moods, genre, lufs, gain, mood_scores):
+def write_metadata(path: Path, bpm, root_key, moods, genre, lufs, gain):
     suffix = path.suffix.lower()
     if suffix == '.mp3':
         try:
@@ -170,10 +153,6 @@ def write_metadata(path: Path, bpm, root_key, moods, genre, lufs, gain, mood_sco
             ('GENRE', genre), ('LUFS', lufs), ('LUFS_GAIN', gain)
         ]:
             tags.setall(f"TXXX:{desc}", [TXXX(encoding=3, desc=desc, text=str(val))])
-        # הוספת כל mood כתגית נפרדת
-        for mood_name, score in mood_scores.items():
-            desc = f"MOOD_{mood_name.upper()}"
-            tags.setall(f"TXXX:{desc}", [TXXX(encoding=3, desc=desc, text=f"{score:.3f}")])
         tags.save(path)
     elif suffix == '.flac':
         audio = FLAC(path)
@@ -183,8 +162,6 @@ def write_metadata(path: Path, bpm, root_key, moods, genre, lufs, gain, mood_sco
         audio['GENRE']     = genre
         audio['LUFS']      = str(lufs)
         audio['LUFS_GAIN'] = str(gain)
-        for mood_name, score in mood_scores.items():
-            audio[f"MOOD_{mood_name.upper()}"] = f"{score:.3f}"
         audio.save()
     elif suffix == '.wav':
         audio = WAVE(path)
@@ -194,8 +171,6 @@ def write_metadata(path: Path, bpm, root_key, moods, genre, lufs, gain, mood_sco
             'MOODS': moods, 'GENRE': genre,
             'LUFS': str(lufs), 'LUFS_GAIN': str(gain)
         })
-        for mood_name, score in mood_scores.items():
-            info[f"MOOD_{mood_name.upper()}"] = f"{score:.3f}"
         audio.tags = info
         audio.save()
 
@@ -204,8 +179,8 @@ def process_all(is_electronic: bool):
     for src in TEMP_DIR.glob('*'):
         if src.suffix.lower() not in ('.mp3', '.flac', '.wav'):
             continue
-        bpm, root_key, moods, genre, lufs, gain, mood_scores = extract_features(src, is_electronic)
-        write_metadata(MUSIC_DIR / src.name, bpm, root_key, moods, genre, lufs, gain, mood_scores)
+        data = extract_features(src, is_electronic)
+        write_metadata(MUSIC_DIR / src.name, *data)
 
     for child in TEMP_DIR.iterdir():
         if child.is_dir():
