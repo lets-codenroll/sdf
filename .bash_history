@@ -146,3 +146,8 @@ python3 version1.py
 python3 analyze_music.py
 python3 version1.py 
 python3 analyze_music.py
+git status
+git add .
+git commit -m "before danceability"
+git push
+python3 analyze_music.py
