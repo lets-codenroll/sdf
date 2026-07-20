@@ -1,0 +1,49 @@
+0 verbose cli /usr/bin/node /usr/bin/npm
+1 info using npm@10.8.2
+2 info using node@v20.19.5
+3 silly config load:file:/usr/lib/node_modules/npm/npmrc
+4 silly config load:file:/root/spotify/.npmrc
+5 silly config load:file:/root/.npmrc
+6 silly config load:file:/usr/etc/npmrc
+7 verbose title npm i playwright
+8 verbose argv "i" "playwright"
+9 verbose logfile logs-max:10 dir:/root/.npm/_logs/2025-11-05T07_06_28_025Z-
+10 verbose logfile /root/.npm/_logs/2025-11-05T07_06_28_025Z-debug-0.log
+11 silly packumentCache heap:1054867456 maxSize:263716864 maxEntrySize:131858432
+12 silly logfile start cleaning logs, removing 1 files
+13 silly logfile done cleaning log files
+14 silly idealTree buildDeps
+15 silly fetch manifest playwright@*
+16 silly packumentCache full:https://registry.npmjs.org/playwright cache-miss
+17 http fetch GET 200 https://registry.npmjs.org/playwright 556ms (cache updated)
+18 silly packumentCache full:https://registry.npmjs.org/playwright set size:undefined disposed:false
+19 silly placeDep ROOT playwright@1.56.1 OK for: spotify-clicker@1.0.0 want: *
+20 silly fetch manifest playwright-core@1.56.1
+21 silly packumentCache full:https://registry.npmjs.org/playwright-core cache-miss
+22 http fetch GET 200 https://registry.npmjs.org/playwright-core 381ms (cache updated)
+23 silly packumentCache full:https://registry.npmjs.org/playwright-core set size:undefined disposed:false
+24 silly fetch manifest fsevents@2.3.2
+25 silly packumentCache full:https://registry.npmjs.org/fsevents cache-miss
+26 http fetch GET 200 https://registry.npmjs.org/fsevents 41ms (cache revalidated)
+27 silly packumentCache full:https://registry.npmjs.org/fsevents set size:182472 disposed:false
+28 silly placeDep ROOT fsevents@2.3.2 OK for: playwright@1.56.1 want: 2.3.2
+29 silly placeDep ROOT playwright-core@1.56.1 OK for: playwright@1.56.1 want: 1.56.1
+30 silly reify moves {}
+31 silly audit bulk request {
+31 silly audit   playwright: [ '1.56.1' ],
+31 silly audit   fsevents: [ '2.3.2' ],
+31 silly audit   'playwright-core': [ '1.56.1' ]
+31 silly audit }
+32 verbose reify failed optional dependency /root/spotify/node_modules/fsevents
+33 silly reify mark deleted [ '/root/spotify/node_modules/fsevents' ]
+34 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 224ms
+35 silly audit report {}
+36 silly ADD node_modules/playwright-core
+37 silly ADD
+38 silly ADD node_modules/playwright
+39 verbose cwd /root/spotify
+40 verbose os Linux 5.15.0-113-generic
+41 verbose node v20.19.5
+42 verbose npm  v10.8.2
+43 verbose exit 0
+44 info ok

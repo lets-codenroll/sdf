@@ -1,15 +1,11 @@
-# =========================
-# Env limits (set BEFORE importing Essentia/Tensorflow)
-# =========================
 import os
+
+# Env limits (set BEFORE importing Essentia/Tensorflow)
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("TF_NUM_INTRAOP_THREADS", "1")
 os.environ.setdefault("TF_NUM_INTEROP_THREADS", "1")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")  # quieter TF logs
 
-# =========================
-# Imports
-# =========================
 import gc
 import json
 import traceback
@@ -19,6 +15,7 @@ from mutagen.id3 import ID3, TXXX, ID3NoHeaderError
 
 # Essentia logging controls (builds without setLevel)
 import essentia
+
 essentia.log.infoActive = False
 essentia.log.warningActive = False
 essentia.log.errorActive = True  # keep errors visible
@@ -31,19 +28,20 @@ from essentia.standard import (
 
 import numpy as np  # self-test + safety checks
 
-# =========================
 # Paths & constants
-# =========================
 SESSION_DIR = Path(__file__).parent.resolve()
 MUSIC_DIR   = SESSION_DIR / 'music'   # MP3s only
 
-MOOD_MODEL_PATH       = 'essentia_models/mood_mirex/mtg_jamendo_moodtheme-discogs-effnet-1.pb'
-GENRE_MODEL_PATH      = 'essentia_models/genre/genre_discogs400-discogs-effnet-1.pb'
-EMBEDDING_MODEL_PATH  = 'essentia_models/discogs/discogs-effnet-bs64-1.pb'
-GENRE_LABELS_PATH     = 'essentia_models/genre/genre_discogs400-discogs-effnet-1.json'
+MODELS_DIR = Path(os.environ.get("MOODA_MODELS_DIR", Path(__file__).parent / "essentia_models"))
 
-DANCE_MODEL_PATH      = 'essentia_models/classifiers/danceability/danceability-musicnn-mtt-2.pb'
-DANCE_META_PATH       = 'essentia_models/classifiers/danceability/danceability-musicnn-mtt-2.json'
+# שמירת אותם שמות קבועים, אבל כ-strings (ולא Path)
+MOOD_MODEL_PATH       = (MODELS_DIR / 'mood_mirex/mtg_jamendo_moodtheme-discogs-effnet-1.pb').as_posix()
+GENRE_MODEL_PATH      = (MODELS_DIR / 'genre/genre_discogs400-discogs-effnet-1.pb').as_posix()
+EMBEDDING_MODEL_PATH  = (MODELS_DIR / 'discogs/discogs-effnet-bs64-1.pb').as_posix()
+GENRE_LABELS_PATH     = (MODELS_DIR / 'genre/genre_discogs400-discogs-effnet-1.json').as_posix()
+DANCE_MODEL_PATH      = (MODELS_DIR / 'classifiers/danceability/danceability-musicnn-mtt-2.pb').as_posix()
+DANCE_META_PATH       = (MODELS_DIR / 'classifiers/danceability/danceability-musicnn-mtt-2.json').as_posix()
+
 
 # Central window lengths (seconds)
 SEG_BPM_KEY_SEC   = 60.0   # window for BPM/Key/LUFS @44.1k mono
@@ -53,12 +51,19 @@ SEG_DANCE_SEC     = 30.0   # window for danceability @16k mono
 MOODS_THRESHOLD = 0.05
 TOPN_MOODS      = 5
 
+def _check_models_exist():
+    required = [GENRE_LABELS_PATH, DANCE_META_PATH]  # הוסף כאן את כל הדרושים
+    missing = [str(p) for p in required if not Path(p).exists()]
+    if missing:
+        raise RuntimeError(
+            "Missing model files:\n  - " + "\n  - ".join(missing) +
+            "\nSet MOODA_MODELS_DIR or place files under that directory."
+        )
+
 def log(msg: str):
     print(msg, flush=True)
 
-# =========================
 # Static data
-# =========================
 def load_json(path: Path):
     with open(path, 'r') as f:
         return json.load(f)
@@ -110,6 +115,7 @@ GENRE_PRED = None
 DANCE_PRED = None
 
 def init_models():
+    _check_models_exist()
     global EFFNET, MOOD_PRED, GENRE_PRED, DANCE_PRED
     if EFFNET is None:
         log("[INIT] Loading Effnet embedding model...")
@@ -248,26 +254,36 @@ def compute_embedding_moods_genre(path: Path, is_electronic: bool):
     genre_pred = GENRE_PRED(embedding).flatten()
     genres_sorted = sorted(zip(GENRE_LABELS, genre_pred), key=lambda x: -x[1]) if GENRE_LABELS else []
 
+    # ---- electronic filter logic ----
     if is_electronic:
+        # keep only electronic
         filtered = [(g, p) for g, p in genres_sorted if g.startswith("Electronic---")]
     else:
-        filtered = [(g, p) for g, p in genres_sorted if not g.startswith("Electronic---")]
+        # [CHANGED] when not electronic-mode, allow ALL genres (electronic and non)  # [CHANGED]
+        filtered = [(g, p) for g, p in genres_sorted]  # [CHANGED]
 
     filtered = [(g, p) for g, p in filtered if g not in IGNORE_GENRES]
-    raw_genre = filtered[0][0] if filtered else (genres_sorted[0][0] if genres_sorted else "Unknown")
-    genre_str = transform_genre(raw_genre)
 
+    # previous single-genre selection kept, but we will now export TOP-3  # [CHANGED]
     if filtered:
-        log(f"[GENRE] '{path.name}' top-5 candidates: " + ", ".join([g for g, _ in filtered[:5]]))
+        candidates = filtered
+        log(f"[GENRE] '{path.name}' top-5 candidates: " + ", ".join([g for g, _ in candidates[:5]]))
     else:
-        log(f"[GENRE] No filtered candidates; selected '{genre_str}'")
+        candidates = genres_sorted
+        if candidates:
+            log(f"[GENRE] No filtered candidates; falling back to unfiltered top list")
+        else:
+            log(f"[GENRE] No candidates at all; setting Unknown")
 
-    moods_str = ", ".join(lbl for lbl, _ in moods_threshold)
+    # Build up to 3 genres, comma-separated (like MOODS)  # [CHANGED]
+    top_labels = [g for g, _ in candidates[:3]] if candidates else ["Unknown"]  # [CHANGED]
+    genres_str = ", ".join(transform_genre(lbl) for lbl in top_labels)          # [CHANGED]
 
     del audio16, embedding, mood_pred, genre_pred
     gc.collect()
 
-    return moods_str, mood_scores, genre_str
+    return ", ".join(lbl for lbl, _ in moods_threshold), mood_scores, genres_str  # [CHANGED] (genres_str now may contain up to 3)
+    # NOTE: function signature and return count remain identical. Only 'genres_str' content changed.  # [CHANGED]
 
 def compute_danceability(path: Path) -> float:
     """Compute danceability % (0–100) on a 30s center window @16k using MusiCNN."""
@@ -295,7 +311,7 @@ def write_id3(path: Path, bpm, root_key, moods, genre, lufs, mood_scores, dancea
             ('BPM', bpm),
             ('ROOT_KEY', root_key),
             ('MOODS', moods),
-            ('GENRE', genre),
+            ('GENRE', genre),  # may contain up to 3 genres, comma-separated  # [CHANGED]
             ('LUFS', lufs),
             ('DANCEABLE_SCORE', danceable_score_pct)
         ]
@@ -341,8 +357,10 @@ def process_all(is_electronic: bool):
 # =========================
 if __name__ == '__main__':
     try:
-        ans = input("Is this electronic music? (y/n): ").strip().lower()
-        is_elec = (ans == 'y')
+        # Updated prompt semantics: 
+        # y = electronic-only; n = ALL genres (electronic + non-electronic)  # [CHANGED]
+        ans = input("Is this electronic music? (y = electronic-only / n = all genres): ").strip().lower()  # [CHANGED]
+        is_elec = (ans == 'y')  # 'n' (or anything else) will mean ALL genres  # [CHANGED]
         process_all(is_elec)
         log("\n[ALL DONE] Processing completed.")
     except KeyboardInterrupt:
